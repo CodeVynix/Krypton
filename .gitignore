@@ -1,0 +1,18 @@
+# .NET build outputs
+bin/
+obj/
+out/
+
+# Local publish output
+publish/
+[Pp]ublish/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+TestResults/
+
+# OpenCode local session/config state (AGENTS.md stays tracked)
+.opencode/

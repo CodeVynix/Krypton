@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- CefSharp only works x64/arm64, never AnyCPU. This repo is x64-only. -->
+    <!-- RuntimeIdentifier pins the RID so CefSharp copies only the x64 CEF -->
+    <!-- runtime (libcef.dll etc.) next to the exe instead of all three archs. -->
+    <PlatformTarget>x64</PlatformTarget>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <AssemblyName>Krypton</AssemblyName>
+    <RootNamespace>Krypton</RootNamespace>
+    <Version>0.1.0</Version>
+    <ApplicationIcon>krypton.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="krypton.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- .NET 8 must use the .NETCore flavor of CefSharp, not CefSharp.WinForms (.NET Framework only). -->
+    <!-- Keep all CefSharp.* packages on the same version. -->
+    <PackageReference Include="CefSharp.WinForms.NETCore" Version="151.3.240" />
+  </ItemGroup>
+
+</Project>
