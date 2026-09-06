@@ -14,5 +14,6 @@ publish/
 *.suo
 TestResults/
 
-# OpenCode local session/config state (AGENTS.md stays tracked)
+# OpenCode local session/config state (incl. agent instructions)
 .opencode/
+AGENTS.md
