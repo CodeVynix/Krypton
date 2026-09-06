@@ -26,4 +26,4 @@ dotnet build
 dotnet run --project Krypton\Krypton.csproj -c Debug
 ```
 
-CefSharp requires x64, so the project pins `<PlatformTarget>x64</PlatformTarget>` + `<RuntimeIdentifier>win-x64</RuntimeIdentifier>` — don't switch it to AnyCPU. See `AGENTS.md` for contributor notes.
+CefSharp requires x64, so the project pins `<PlatformTarget>x64</PlatformTarget>` + `<RuntimeIdentifier>win-x64</RuntimeIdentifier>` — don't switch it to AnyCPU.
