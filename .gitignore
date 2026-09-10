@@ -1,19 +1,7 @@
-# .NET build outputs
-bin/
+﻿bin/
 obj/
-out/
-
-# Local publish output
-publish/
-[Pp]ublish/
-
-# Visual Studio / Rider
 .vs/
 .idea/
-*.user
-*.suo
-TestResults/
-
-# OpenCode local session/config state (incl. agent instructions)
-.opencode/
+Output/
+publish/
 AGENTS.md

@@ -22,6 +22,19 @@ internal static class Program
         };
         settings.RootCachePath = settings.CachePath;
 
+        // Custom new-tab scheme. MUST register before Cef.Initialize —
+        // CEF ignores scheme registrations afterwards. Standard + secure +
+        // local so krypton://new-tab behaves like an integrated page.
+        settings.RegisterScheme(new CefCustomScheme
+        {
+            SchemeName = "krypton",
+            DomainName = "new-tab",
+            SchemeHandlerFactory = new KryptonSchemeHandlerFactory(),
+            IsStandard = true,
+            IsLocal = true,
+            IsSecure = true,
+        });
+
         if (!Cef.Initialize(settings, performDependencyCheck: true, browserProcessHandler: null))
         {
             MessageBox.Show("Cef.Initialize failed. Check VC++ 2022 x64 runtime and x64 build config.",

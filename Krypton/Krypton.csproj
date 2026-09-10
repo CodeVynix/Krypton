@@ -20,12 +20,15 @@
 
   <ItemGroup>
     <EmbeddedResource Include="krypton.ico" />
+    <EmbeddedResource Include="newtab.html" />
+    <EmbeddedResource Include="gmail-dial.png" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- .NET 8 must use the .NETCore flavor of CefSharp, not CefSharp.WinForms (.NET Framework only). -->
     <!-- Keep all CefSharp.* packages on the same version. -->
     <PackageReference Include="CefSharp.WinForms.NETCore" Version="151.3.240" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
   </ItemGroup>
 
 </Project>

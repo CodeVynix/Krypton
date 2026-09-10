@@ -1,0 +1,53 @@
+name: Build Installer
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Publish (win-x64, self-contained)
+        run: dotnet publish Krypton/Krypton.csproj -c Release -r win-x64 --self-contained true -o publish
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Compile installer
+        run: iscc Krypton.iss
+
+      # --- SignPath integration goes here once the application is approved ---
+      # After approval, this step submits the compiled installer (from the
+      # Output\ folder) to SignPath for signing, then downloads the signed
+      # result back before it's uploaded as a release asset. Do not enable
+      # this until SignPath project + policy + GitHub secrets are set up —
+      # see CODE_SIGNING_POLICY.md.
+      #
+      # - name: Sign with SignPath
+      #   uses: signpath/github-action-submit-signing-request@v1
+      #   with:
+      #     api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
+      #     organization-id: '<org-id-from-signpath>'
+      #     project-slug: 'krypton'
+      #     signing-policy-slug: 'release-signing'
+      #     artifact-configuration-slug: 'installer'
+      #     github-artifact-id: '${{ steps.upload-unsigned.outputs.artifact-id }}'
+      #     wait-for-completion: true
+      #     output-artifact-directory: 'signed'
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KryptonSetup
+          path: Output/KryptonSetup-*.exe

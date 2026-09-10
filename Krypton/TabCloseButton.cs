@@ -8,8 +8,10 @@ namespace Krypton;
 // because a stock Button can't do a circular hover highlight.
 internal sealed class TabCloseButton : Control
 {
-    private static readonly Color GlyphColor = Color.FromArgb(60, 60, 60);
-    private static readonly Color HoverColor = Color.FromArgb(218, 218, 218);
+    // Settable so owners can pair glyph/disc with the tab theme (dark strip
+    // needs a light glyph + subtle disc; defaults preserve the light look).
+    public Color GlyphColor { get; set; } = Color.FromArgb(60, 60, 60);
+    public Color HoverColor { get; set; } = Color.FromArgb(218, 218, 218);
 
     private bool _hover;
 
@@ -20,8 +22,9 @@ internal sealed class TabCloseButton : Control
                  ControlStyles.OptimizedDoubleBuffer |
                  ControlStyles.AllPaintingInWmPaint |
                  ControlStyles.UserPaint, true);
-        Size = new System.Drawing.Size(22, 22);
+        Size = new System.Drawing.Size(18, 18);
         Cursor = Cursors.Hand;
+        TabStop = false; // no focus rect: stays borderless like Chrome
         BackColor = Color.Transparent;
     }
 
@@ -54,8 +57,8 @@ internal sealed class TabCloseButton : Control
         // horizontally regardless of font metrics. Matches the + alignment.
         float cx = Width / 2f;
         float cy = Height / 2f;
-        const float r = 5.5f;
-        using var pen = new Pen(GlyphColor, 2f)
+        const float r = 4f; // balanced against the large + (pairs with the 18px box)
+        using var pen = new Pen(GlyphColor, 1.6f)
         {
             StartCap = LineCap.Round,
             EndCap = LineCap.Round,

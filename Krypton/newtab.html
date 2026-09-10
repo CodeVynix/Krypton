@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark">
+<title>New Tab</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Segoe UI", system-ui, Arial, sans-serif;
+    background: #2b2e33;
+    color: #e8eaed;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100%;
+  }
+  .top-links {
+    align-self: stretch;
+    display: flex;
+    justify-content: flex-end;
+    gap: 20px;
+    padding: 14px 22px;
+    font-size: 13px;
+  }
+  .top-links a { color: #e8eaed; text-decoration: none; }
+  .top-links a:hover { text-decoration: underline; }
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    padding-top: 12vh;
+  }
+  .wordmark {
+    font-size: 64px;
+    font-weight: 400;
+    letter-spacing: 1px;
+    color: #9db4d0;
+    margin-bottom: 34px;
+    user-select: none;
+  }
+  form {
+    display: flex;
+    align-items: center;
+    width: min(560px, 86vw);
+    background: #fff;
+    border-radius: 999px;
+    padding: 6px 8px 6px 20px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, .35);
+  }
+  form input {
+    flex: 1;
+    border: 0;
+    outline: 0;
+    font-size: 16px;
+    color: #202124;
+    background: transparent;
+    min-width: 0;
+  }
+  form input::placeholder { color: #5f6368; }
+  form button {
+    border: 0;
+    cursor: pointer;
+    border-radius: 999px;
+    background: #eef1f4;
+    color: #202124;
+    font-size: 14px;
+    padding: 9px 18px;
+  }
+  form button:hover { background: #e2e6ea; }
+  .shortcuts {
+    display: flex;
+    gap: 8px;
+    margin-top: 34px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 640px;
+  }
+  .shortcuts a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 96px;
+    padding: 12px 4px 10px;
+    border-radius: 8px;
+    color: #e8eaed;
+    font-size: 12px;
+    text-decoration: none;
+  }
+  .shortcuts a:hover { background: rgba(255, 255, 255, .07); }
+  .dot {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #3c4043;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .dot img {
+    width: 26px;
+    height: 26px;
+    display: block;
+    border-radius: 50%; /* clip square logos (GitHub) into the circular dial */
+  }
+</style>
+</head>
+<body>
+  <nav class="top-links">
+    <a href="https://mail.google.com/">Gmail</a>
+    <a href="https://www.google.com/imghp">Images</a>
+  </nav>
+  <main>
+    <div class="wordmark">Krypton</div>
+    <form action="https://www.google.com/search" method="get">
+      <input type="text" name="q" placeholder="Search Google" autocomplete="off">
+      <button type="submit">Search</button>
+    </form>
+    <div class="shortcuts">
+      <a href="https://www.youtube.com/"><span class="dot"><img src="https://www.google.com/s2/favicons?domain=youtube.com&amp;sz=128" alt="YouTube" width="26" height="26"></span>YouTube</a>
+      <a href="https://github.com/"><span class="dot"><img src="https://www.google.com/s2/favicons?domain=github.com&amp;sz=128" alt="GitHub" width="26" height="26"></span>GitHub</a>
+      <a href="https://mail.google.com/"><span class="dot"><img src="krypton://new-tab/gmail-dial.png" alt="Gmail" width="26" height="26"></span>Gmail</a>
+      <a href="https://www.google.com/maps"><span class="dot"><img src="https://www.google.com/s2/favicons?domain=maps.google.com&amp;sz=128" alt="Maps" width="26" height="26"></span>Maps</a>
+    </div>
+  </main>
+</body>
+</html>
