@@ -57,14 +57,19 @@ internal sealed class TabTitleLabel : Control
             if (Text.Length > 0)
             {
                 using var fore = new SolidBrush(ForeColor);
-                using var sf = new StringFormat(StringFormatFlags.NoWrap)
+                // GenericTypographic: no intrinsic 1/6-em left padding that the
+                // default StringFormat adds (it stacked with the icon gap to
+                // read as double-space). Glyphs now start at the layout rect.
+                using var sf = new StringFormat(StringFormat.GenericTypographic)
                 {
                     Alignment = StringAlignment.Near,
                     LineAlignment = StringAlignment.Center,
                     Trimming = StringTrimming.EllipsisCharacter,
                 };
+                sf.FormatFlags |= StringFormatFlags.NoWrap;
                 e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
-                g.DrawString(Text, Font, fore, ClientRectangle, sf);
+                var layout = new RectangleF(0, 0, Width, Height);
+                g.DrawString(Text, Font, fore, layout, sf);
             }
             Paints++;
         }

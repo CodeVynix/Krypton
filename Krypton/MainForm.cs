@@ -745,8 +745,8 @@ partial class MainForm : Form
         };
         var title = new TabTitleLabel
         {
-            Location = new System.Drawing.Point(28, 1),
-            Size = new System.Drawing.Size(142, 24), // full item height: text vertically centered, never clips
+            Location = new System.Drawing.Point(27, 1),
+            Size = new System.Drawing.Size(143, 24), // full item height: text vertically centered, never clips
             Text = "New Tab",
             BackColor = StripBack, // explicit opaque dark pairs (see ActivateTab)
             ForeColor = InactiveTitleFore,
@@ -827,7 +827,7 @@ partial class MainForm : Form
             t.StripClose.Visible = showClose;
             t.StripClose.Location = new System.Drawing.Point(w - 26, 4);
             t.StripTitle.Visible = showTitle;
-            t.StripTitle.Width = Math.Max(8, showClose ? w - 58 : w - 36); // always refresh, even hidden
+            t.StripTitle.Width = Math.Max(8, showClose ? w - 57 : w - 35); // always refresh, even hidden
             x += w + TabRightMargin;
         }
         // The + stays right after the last tab but pinned inside the strip,
@@ -1446,7 +1446,7 @@ partial class MainForm : Form
         Ui(() =>
         {
             tab.FaviconNote = note; // diag trace: what won and where from
-            if (tab.Browser.IsDisposed)
+            if (tab.Browser.IsDisposed || tab.StripItem.IsDisposed || tab.StripIcon.IsDisposed)
             {
                 if (img != null)
                 {
@@ -1460,6 +1460,17 @@ partial class MainForm : Form
 
     private void SetTabFavicon(BrowserTab tab, Image img, bool disposeOld)
     {
+        // The fetch outlives navigation: its tab/item may be disposed (tab
+        // closed, last-tab exit) before it lands. Touching a disposed
+        // PictureBox throws on the UI thread and kills the window.
+        if (tab.StripItem.IsDisposed || tab.StripIcon.IsDisposed || faviconBox.IsDisposed)
+        {
+            if (img != null && !ReferenceEquals(img, DefaultFavicon))
+            {
+                try { img.Dispose(); } catch { }
+            }
+            return;
+        }
         Image? old = tab.Favicon;
         tab.Favicon = img;
         tab.StripIcon.Image = img;
@@ -1542,13 +1553,22 @@ partial class MainForm : Form
         {
             return;
         }
+        // A single bad marshal (e.g. favicon landing after its tab closed)
+        // must never take the whole window down: drop it with a trace.
+        void Safe()
+        {
+            try { action(); }
+            catch (ObjectDisposedException) { }
+            catch (InvalidOperationException) { }
+            catch (Exception ex) { Debug.WriteLine($"[Krypton] Ui dropped: {ex.GetType().Name} {ex.Message}"); }
+        }
         if (InvokeRequired)
         {
-            try { BeginInvoke(action); } catch (ObjectDisposedException) { }
+            try { BeginInvoke(Safe); } catch (ObjectDisposedException) { }
         }
         else
         {
-            action();
+            Safe();
         }
     }
 
@@ -1697,9 +1717,13 @@ partial class MainForm : Form
         _completing = true;
         try
         {
-            addressBar.Text = completed;
+            // Preserve the user's own casing (CapsLock/Shift): the match is
+            // case-insensitive, so splicing the stored suggestion directly
+            // would rewrite e.g. typed "M" to "m" and the next keystroke then
+            // yields "mM". Keep the typed prefix, append only the tail.
+            addressBar.Text = typed + completed.Substring(typed.Length);
             addressBar.Select(typed.Length, completed.Length - typed.Length);
-            _lastText = completed;
+            _lastText = addressBar.Text;
             _completionActive = true;
         }
         finally

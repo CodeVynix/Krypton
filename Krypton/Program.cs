@@ -43,8 +43,26 @@ internal static class Program
         }
 
         ApplicationConfiguration.Initialize();
+        // Crash evidence: silent vanishes (e.g. a bad UI marshal after a
+        // navigation) otherwise leave nothing behind. Best-effort log only.
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => LogCrash("unhandled", e.ExceptionObject as Exception);
+        Application.ThreadException += (_, e) => LogCrash("thread", e.Exception);
         Application.Run(new MainForm());
 
         Cef.Shutdown();
+    }
+
+    private static void LogCrash(string kind, Exception? ex)
+    {
+        try
+        {
+            string dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Krypton");
+            Directory.CreateDirectory(dir);
+            File.AppendAllText(Path.Combine(dir, "crash.log"),
+                $"[{DateTime.UtcNow:O}] {kind}: {ex}{Environment.NewLine}");
+        }
+        catch { /* logging must never crash the crash path */ }
     }
 }

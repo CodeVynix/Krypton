@@ -2,7 +2,24 @@
 
 A minimal Windows-only web browser — C# (.NET 8) + WinForms + CefSharp (Chromium) — with a Chrome-style dark UI drawn entirely in native WinForms. No web tech in the app shell itself.
 
-## Features (v1.0)
+## Releases
+
+### v1.0.0 — completely finished
+
+Shipped fixes: tab favicon→title spacing (Chrome-tight 5px gap), omnibox
+completion preserves typed casing (CapsLock `mM` fix), crash hardening
+(`%LocalAppData%\Krypton\crash.log` + safe UI marshal + favicon disposed
+guards for page navigations like Google → YouTube).
+Bug fixes or any GitHub issues filed against v1.0.0 will be added in v1.1.0.
+If you find any issues with the browser, add an issue in
+[https://github.com/CodeVynix/Krypton/issues](https://github.com/CodeVynix/Krypton/issues).
+
+### v1.1.0 — in progress
+
+Deferred: page context-menu expansion, Chrome-parity UI ultra-polish,
+`newtab.html` re-theme (keep 4 dials, no JS).
+
+## Features (v1.0.0)
 
 - **Omnibox**: `https://` prepended when the scheme is missing, bare terms go to Google; inline completion from browsed hosts; Chrome-style select-all, `Tab` to accept, `Esc` to revert, `Enter` to go
 - **Toolbar**: back / forward / refresh / stop / home with history-aware states; Stop aborts and falls back instead of stranding a blank page
@@ -19,6 +36,9 @@ Deliberately *not* included: bookmarks, history UI, downloads, settings, extensi
 - Windows 10/11, x64
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 - VC++ 2022 x64 runtime (required by CEF)
+- Smart App Control (SAC): recommended to disable — the app is currently
+  unsigned and may be blocked. A signing application has been sent to
+  [SignPath Foundation](https://signpath.org).
 
 ## Build & run
 
