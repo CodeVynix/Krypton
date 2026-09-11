@@ -60,7 +60,7 @@ Ship the whole `publish` folder; `Krypton.exe` is the signable entry point. Do *
 ## Repository layout
 
 - `Krypton/` — the browser (`Program.cs` CEF lifecycle, `MainForm` tabs/toolbar/frame, owner-drawn controls, bundled `newtab.html`)
-- `tools/StripProbe/` — offscreen regression probe: tab-strip layout, popups, omnibox commit, hit-test routing, state cycles. `dotnet run --project tools/StripProbe`; exit 0 = pass, evidence PNGs in `%TEMP%\opencode`
+- `tools/StripProbe/` — offscreen regression probe: tab-strip layout, popups, omnibox commit, hit-test routing, state cycles. `dotnet run --project tools/StripProbe`; exit 0 = pass, evidence PNGs in `%TEMP%\krypton-stripprobe`
 
 ## Notes
 

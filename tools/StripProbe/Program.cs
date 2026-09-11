@@ -31,7 +31,7 @@ internal static class StripProbe
 
     private static int Run()
     {
-        string outDir = Path.Combine(Path.GetTempPath(), "opencode");
+        string outDir = Path.Combine(Path.GetTempPath(), "krypton-stripprobe");
         Directory.CreateDirectory(outDir);
 
         Assembly[] cefAsms = new[]
