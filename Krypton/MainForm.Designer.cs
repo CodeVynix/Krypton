@@ -18,6 +18,7 @@ partial class MainForm
     private TabStripHost tabsHost = null!;
     private TabPlusButton btnNewTab = null!;
     private Panel contentPanel = null!;
+    private Panel toolbarDivider = null!;
 
     private void InitializeComponent()
     {
@@ -133,12 +134,21 @@ partial class MainForm
         toolbarPanel.Controls.Add(btnBack);
         toolbarPanel.Resize += ToolbarPanel_Resize; // keep the omnibox centered/full-width
 
+        // ---- Hairline under the toolbar (Chrome's toolbar/content separation) ----
+        toolbarDivider = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 1,
+            BackColor = Color.FromArgb(60, 63, 68),
+        };
+
         // Dock-Top stacking: last-added Top ends up topmost. Add bottom-up
-        // (content, loading, toolbar, tabStrip) so the final order top to
-        // bottom is: tabStrip, toolbar (nav + address), loading strip just
+        // (content, loading, divider, toolbar, tabStrip) so the final order
+        // top to bottom is: tabStrip, toolbar, divider, loading strip just
         // beneath the address bar — all below the native OS title bar.
         Controls.Add(contentPanel);
         Controls.Add(loadingStrip);
+        Controls.Add(toolbarDivider);
         Controls.Add(toolbarPanel);
         Controls.Add(tabStripPanel);
 

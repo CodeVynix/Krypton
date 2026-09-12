@@ -22,18 +22,21 @@ internal static class Program
         };
         settings.RootCachePath = settings.CachePath;
 
-        // Custom new-tab scheme. MUST register before Cef.Initialize —
+        // Custom krypton:// pages. MUST register before Cef.Initialize —
         // CEF ignores scheme registrations afterwards. Standard + secure +
-        // local so krypton://new-tab behaves like an integrated page.
-        settings.RegisterScheme(new CefCustomScheme
+        // local so they behave like integrated pages.
+        foreach (string domain in new[] { "new-tab", "docs" })
         {
-            SchemeName = "krypton",
-            DomainName = "new-tab",
-            SchemeHandlerFactory = new KryptonSchemeHandlerFactory(),
-            IsStandard = true,
-            IsLocal = true,
-            IsSecure = true,
-        });
+            settings.RegisterScheme(new CefCustomScheme
+            {
+                SchemeName = "krypton",
+                DomainName = domain,
+                SchemeHandlerFactory = new KryptonSchemeHandlerFactory(),
+                IsStandard = true,
+                IsLocal = true,
+                IsSecure = true,
+            });
+        }
 
         if (!Cef.Initialize(settings, performDependencyCheck: true, browserProcessHandler: null))
         {

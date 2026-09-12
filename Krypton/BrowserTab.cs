@@ -20,6 +20,9 @@ internal sealed class BrowserTab : IDisposable
     public bool IsLoading { get; set; }
     public bool CanGoBack { get; set; }
     public bool CanGoForward { get; set; }
+    // CEF zoom level for this tab (0 = 100%). Kept per-tab so Ctrl+Plus/Minus
+    // survives nothing but the tab itself — no per-host persistence in v1.1.0.
+    public double ZoomLevel { get; set; }
 
     // Strip UI owned by MainForm (favicon box, title label, close button row).
     public Panel StripItem { get; set; } = null!;

@@ -21,6 +21,7 @@
   <ItemGroup>
     <EmbeddedResource Include="krypton.ico" />
     <EmbeddedResource Include="newtab.html" />
+    <EmbeddedResource Include="docs.html" />
     <EmbeddedResource Include="gmail-dial.png" />
   </ItemGroup>
 

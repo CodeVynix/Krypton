@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark">
+<title>Krypton Docs</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, Arial, sans-serif;
+    background: #343842;
+    color: #e8eaed;
+    line-height: 1.55;
+    padding: 32px 22px 64px;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 40px; font-weight: 400; color: #a8c7fa; margin-bottom: 6px; }
+  h2 { font-size: 20px; font-weight: 600; margin: 30px 0 8px; color: #fff; }
+  p, li { font-size: 14px; color: #d7dbe0; }
+  ul { padding-left: 22px; }
+  li { margin: 3px 0; }
+  code {
+    font-family: Consolas, monospace;
+    font-size: 13px;
+    background: #464b53;
+    border-radius: 4px;
+    padding: 1px 6px;
+  }
+  pre {
+    font-family: Consolas, monospace;
+    font-size: 13px;
+    background: #232529;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 10px 0;
+    overflow-x: auto;
+    color: #d7dbe0;
+  }
+  table { border-collapse: collapse; margin-top: 8px; width: 100%; }
+  td { font-size: 14px; padding: 5px 10px 5px 0; vertical-align: top; }
+  td:first-child { white-space: nowrap; }
+  td.scenario { color: #9aa0a6; }
+  a { color: #a8c7fa; }
+  .back { display: inline-block; margin-top: 34px; font-size: 14px; }
+</style>
+</head>
+<body>
+  <h1>Krypton Docs</h1>
+  <p>The minimal Windows browser: an address bar, tabs, and nothing you didn't ask for.</p>
+
+  <h2>How it works</h2>
+  <p>Every tab owns exactly one Chromium page (<code>ChromiumWebBrowser</code>).
+  The window frame, tab strip, and toolbar are native WinForms — no web tech in
+  the app shell. Built-in pages live on the <code>krypton://</code> scheme:</p>
+  <ul>
+    <li><code>krypton://new-tab</code> — this dashboard (bundled <code>newtab.html</code>)</li>
+    <li><code>krypton://docs</code> — this page (bundled <code>docs.html</code>)</li>
+  </ul>
+  <p>Page events (address, title, loading) arrive on background threads and are
+  marshalled to the UI thread before touching any control — the shape of it:</p>
+  <pre>private void Browser_AddressChanged(object? sender, AddressChangedEventArgs e)
+{
+    // CEF thread: never touch controls here.
+    Ui(() => addressBar.Text = e.Address); // marshalled to the UI thread
+}</pre>
+
+  <h2>Address bar</h2>
+  <ul>
+    <li>Type a web address to go there (<code>https://</code> is added when missing).</li>
+    <li>Type anything else to search it on Google.</li>
+    <li>While typing, matching hosts complete inline: <code>Tab</code> accepts, <code>Esc</code> reverts, <code>Enter</code> goes.</li>
+    <li><code>Ctrl+L</code> jumps back here from anywhere.</li>
+  </ul>
+
+  <h2>Tabs</h2>
+  <ul>
+    <li><code>+</code> opens a tab, <code>&times;</code> closes one. Closing the last tab exits Krypton.</li>
+    <li>Crowded tabs shrink to share the strip — scroll them with the mouse wheel.</li>
+  </ul>
+
+  <h2>Shortcuts, with real life</h2>
+  <table>
+    <tr><td><code>Ctrl+T</code></td><td>New tab</td><td class="scenario">Heard a song name on a call? New tab, type it, Enter.</td></tr>
+    <tr><td><code>Ctrl+W</code></td><td>Close tab</td><td class="scenario">Done reading — close it without touching the mouse.</td></tr>
+    <tr><td><code>Ctrl+Shift+T</code></td><td>Reopen closed tab</td><td class="scenario">Closed the wrong tab mid-research? It comes straight back.</td></tr>
+    <tr><td><code>Ctrl+R</code> / <code>Ctrl+Shift+R</code></td><td>Reload / hard reload</td><td class="scenario">Page looks stale or half-loaded? Hard reload skips the cache.</td></tr>
+    <tr><td><code>Alt+Left</code> / <code>Alt+Right</code></td><td>Back / forward</td><td class="scenario">Jump back to results after opening three links.</td></tr>
+    <tr><td><code>Esc</code></td><td>Stop loading</td><td class="scenario">A heavy page is still spinning — stop it and read what's there.</td></tr>
+    <tr><td><code>Ctrl+Plus</code> / <code>Ctrl+Minus</code> / <code>Ctrl+0</code></td><td>Zoom in / out / reset</td><td class="scenario">Tiny documentation text? Zoom in, reset when done.</td></tr>
+    <tr><td><code>Ctrl+F</code></td><td>Find in page</td><td class="scenario">Hunting one error string in a long log page.</td></tr>
+    <tr><td><code>Ctrl+P</code></td><td>Print page</td><td class="scenario">A recipe or ticket worth keeping on paper.</td></tr>
+    <tr><td><code>Ctrl+Shift+I</code></td><td>Developer tools</td><td class="scenario">Checking why your own site renders oddly.</td></tr>
+    <tr><td><code>Ctrl+L</code></td><td>Address bar</td><td class="scenario">Hands on keyboard — jump up, type, go.</td></tr>
+    <tr><td><code>F11</code></td><td>Fullscreen</td><td class="scenario">Video or presentation covering the taskbar. <code>Esc</code> exits.</td></tr>
+  </table>
+
+  <h2>Right-click menu</h2>
+  <ul>
+    <li>Back, Forward, Reload — greyed when there is nowhere to go.</li>
+    <li>Print, Save as (page HTML), View page source, Inspect.</li>
+    <li>On links: open in a new tab, save the target, copy the address.</li>
+    <li>On images: open in a new tab, save the image, copy the image itself or its address.</li>
+  </ul>
+
+  <h2>New-tab dials</h2>
+  <p>Four shortcuts: YouTube, GitHub, Gmail, Maps. Clicking the address bar
+  selects everything, so replacing it is one keystroke.</p>
+
+  <h2>System requirements</h2>
+  <p><b>Minimum</b> — Windows 10 (1809 or newer, 64-bit), dual-core x64
+  processor, 4 GB RAM, about 800 MB free disk space (app, browser engine,
+  profile and cache), and the
+  <a href="https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist">VC++ 2022 x64 runtime</a>.
+  The app is currently unsigned, so Smart App Control may block it until the
+  signed release lands.</p>
+  <p><b>Recommended</b> — Windows 11 (64-bit), quad-core processor or better,
+  8 GB RAM, an SSD, and a 1080p or higher display. More RAM mostly helps when
+  many heavy tabs (video, docs, maps) stay open at once.</p>
+
+  <h2>When something looks wrong</h2>
+  <ul>
+    <li>A blank page after stopping a load: it recovers to the previous page, or a fresh New Tab.</li>
+    <li>A crash leaves evidence in <code>%LocalAppData%\Krypton\crash.log</code> — attach it to your
+    <a href="https://github.com/CodeVynix/Krypton/issues">issue report</a>.</li>
+  </ul>
+
+  <a class="back" href="krypton://new-tab">Back to New Tab</a>
+</body>
+</html>

@@ -9,7 +9,7 @@
 ; ============================================================
 
 #define MyAppName "Krypton"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "CodeVynix"
 #define MyAppURL "https://github.com/CodeVynix/Krypton"
 #define MyAppExeName "Krypton.exe"

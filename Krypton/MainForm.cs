@@ -1,4 +1,5 @@
 using CefSharp;
+using CefSharp.WinForms;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -23,6 +24,10 @@ partial class MainForm : Form
 
     private readonly List<BrowserTab> _tabs = new();
     private BrowserTab? _activeTab;
+    // Ctrl+Shift+T history: URLs of closed tabs, newest last (cap keeps the
+    // list bounded; the process exit drops it — no session restore in v1.1.0).
+    private readonly List<string> _closedTabs = new();
+    private const int MaxClosedTabs = 25;
 
     static MainForm()
     {
@@ -91,6 +96,9 @@ partial class MainForm : Form
     internal static readonly Color CaptionClosePress = Color.FromArgb(178, 12, 26);
     // Dark toolbar + omnibox (Chrome NTP-dark family) + light nav glyphs.
     private static readonly Color ToolbarBack = Color.FromArgb(32, 33, 36);
+    private static readonly Color OmniboxBack = Color.FromArgb(48, 49, 54);
+    private static readonly Color OmniboxFocusBack = Color.FromArgb(60, 63, 68);
+    private static readonly Color OmniboxFore = Color.FromArgb(232, 234, 237);
     private static readonly Color NavGlyphLight = Color.FromArgb(205, 209, 214);
     private static readonly Color NavGlyphDim = Color.FromArgb(105, 109, 116);
     private static readonly Color NavHoverDisc = Color.FromArgb(58, 60, 65);
@@ -105,6 +113,7 @@ partial class MainForm : Form
         captionButtons = new CaptionButtons { Dock = DockStyle.Right };
         captionButtons.Width = captionButtons.ButtonWidth * 3;
         tabsHost.Controls.Add(captionButtons);
+        _menuDismissFilter = new MenuDismissFilter(this);
         // Safety net: any client mouse movement means we left the (non-client
         // hit-tested) button zone — drop hover even if an NC-leave went missing.
         tabsHost.MouseMove += (_, _) => captionButtons.SetHoverHit(0);
@@ -124,8 +133,17 @@ partial class MainForm : Form
             Icon = (Icon)AppIcon.Clone(); // window/taskbar icon matches the exe icon
         }
         faviconBox.Image = DefaultFavicon;
+        // An open page menu belongs to the old state: dismiss on minimize,
+        // task-switch, or anything else that deactivates the window.
+        Deactivate += (_, _) =>
+        {
+            try { _pageMenu?.Close(); } catch { /* never block teardown */ }
+        };
         FormClosing += (_, _) =>
         {
+            try { Application.RemoveMessageFilter(_menuDismissFilter); } catch { }
+            try { UninstallMenuHook(); } catch { }
+            try { _pageMenu?.Dispose(); } catch { /* never block teardown */ }
             DisposeAllTabs();
             lock (_historyLock)
             {
@@ -206,6 +224,73 @@ partial class MainForm : Form
     [DllImport("user32.dll")]
     private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,
         int x, int y, int cx, int cy, uint uFlags);
+
+    // Low-level mouse hook for menu dismissal (see MenuDismissFilter): kept
+    // alive in a field, installed only while the menu is visible.
+    private const int WH_MOUSE_LL = 14;
+    private delegate IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetWindowsHookEx(int idHook, HookProc lpfn, IntPtr hMod, uint dwThreadId);
+    [DllImport("user32.dll")]
+    private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+    [DllImport("user32.dll")]
+    private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr GetModuleHandle(string? lpModuleName);
+
+    private IntPtr _menuMouseHook = IntPtr.Zero;
+    private HookProc? _menuHookProc;
+
+    private void InstallMenuHook()
+    {
+        if (_menuMouseHook != IntPtr.Zero)
+        {
+            return;
+        }
+        try
+        {
+            _menuHookProc = MenuMouseHook;
+            _menuMouseHook = SetWindowsHookEx(WH_MOUSE_LL, _menuHookProc, GetModuleHandle(null), 0);
+        }
+        catch
+        {
+            _menuMouseHook = IntPtr.Zero;
+        }
+    }
+
+    private void UninstallMenuHook()
+    {
+        if (_menuMouseHook == IntPtr.Zero)
+        {
+            return;
+        }
+        try
+        {
+            UnhookWindowsHookEx(_menuMouseHook);
+        }
+        catch { /* best-effort */ }
+        _menuMouseHook = IntPtr.Zero;
+    }
+
+    // Runs on our UI thread for every system click while installed: close an
+    // open menu clicked outside of, never swallow (the click must still land).
+    private IntPtr MenuMouseHook(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode >= 0)
+        {
+            int msg = wParam.ToInt32();
+            if (msg is 0x201 or 0x204 or 0x207) // down: left/right/middle
+            {
+                try
+                {
+                    NoteOutsideMouseDown();
+                }
+                catch { /* a dismiss must never break input */ }
+            }
+        }
+        return CallNextHookEx(_menuMouseHook, nCode, wParam, lParam);
+    }
 
     private const uint SWP_NOSIZE = 0x1;
     private const uint SWP_NOMOVE = 0x2;
@@ -495,7 +580,12 @@ partial class MainForm : Form
 
     internal void ToggleFullScreen() => SetFullScreen(!_fullScreen);
 
-    internal void SetFullScreen(bool on)
+    // UI-thread only via Ui(): page-side keys arrive on CEF threads
+    // (BrowserKeyHandler), and raw cross-thread control access kills the
+    // window — the same hardening as every other CEF callback.
+    internal void SetFullScreen(bool on) => Ui(() => SetFullScreenCore(on));
+
+    private void SetFullScreenCore(bool on)
     {
         if (on == _fullScreen || IsDisposed || Disposing)
         {
@@ -700,6 +790,10 @@ partial class MainForm : Form
         tab.Browser.KeyboardHandler = new BrowserKeyHandler(this);
         // Hook: popups/window.open (CEF thread) -> new tabs via OpenPopupUrl.
         tab.Browser.LifeSpanHandler = new TabLifeSpanHandler(this);
+        // Hook: page right-click (CEF thread) -> WinForms menu via PostPageMenu.
+        tab.Browser.MenuHandler = new TabContextMenuHandler(this, tab);
+        // Hook: find-in-page results (CEF thread) -> floating find bar count.
+        tab.Browser.FindHandler = new TabFindHandler(this, tab);
         // Hook: AddressChanged (CEF thread) -> Feature 4 address-bar sync.
         tab.Browser.AddressChanged += Browser_AddressChanged;
         // Hook: TitleChanged (CEF thread) -> Feature 5 title.
@@ -731,7 +825,7 @@ partial class MainForm : Form
         {
             Width = 200,
             Height = 26,
-            Margin = new Padding(0, 3, 4, 3), // 26px tall, centered in the 32px strip
+            Margin = new Padding(0, 3, 2, 3), // 26px tall, centered in the 32px strip
             BorderStyle = BorderStyle.None, // borderless like Chrome: bg contrast separates tabs
             BackColor = StripBack,
             Tag = tab,
@@ -776,7 +870,7 @@ partial class MainForm : Form
 
     private const int FullTabWidth = 200;
     private const int MinTabWidth = 56; // Chrome-density minimum; inner tiers below keep icon/× from overlapping
-    private const int TabRightMargin = 4; // must match BuildStripItem's right margin
+    private const int TabRightMargin = 2; // must match BuildStripItem's right margin
     private const int CloseVisibleWidth = 100; // inactive tabs hide their × below this width, like Chrome
     private const int TitleVisibleWidth = 76; // below this even the title hides (icon-only tabs), so nothing overlaps
 
@@ -819,6 +913,7 @@ partial class MainForm : Form
             }
             t.StripItem.Location = new System.Drawing.Point(x, 3);
             t.StripItem.Width = w;
+            RoundTabTop(t.StripItem); // Chrome-like rounded tops, same bounds
             // Dynamic ×: the active tab always keeps it; inactive tabs drop it
             // once narrow. Below TitleVisibleWidth the title hides too, so the
             // icon and × can never overlap at extreme densities.
@@ -834,6 +929,27 @@ partial class MainForm : Form
         // so it never scrolls out of reach.
         int plusX = Math.Max(2, Math.Min(x + 2, hostW - btnNewTab.Width));
         btnNewTab.Location = new System.Drawing.Point(plusX, 3);
+    }
+
+    // Chrome-like rounded tab tops without touching layout: the bounds stay
+    // identical (probe geometry asserts hold), only corner pixels stop
+    // painting and hitting. Radius 6 keeps icon/×/title clear of the curves.
+    private static void RoundTabTop(Panel item)
+    {
+        try
+        {
+            int r = 6, w = Math.Max(1, item.Width), h = Math.Max(1, item.Height);
+            using var path = new System.Drawing.Drawing2D.GraphicsPath();
+            path.AddArc(0, 0, r * 2, r * 2, 180, 90);
+            path.AddArc(w - r * 2 - 1, 0, r * 2, r * 2, 270, 90);
+            path.AddLine(w - 1, r, w - 1, h);
+            path.AddLine(w - 1, h, 0, h);
+            path.AddLine(0, h, 0, r);
+            path.CloseFigure();
+            item.Region?.Dispose();
+            item.Region = new Region(path);
+        }
+        catch { /* square tabs on failure */ }
     }
 
     // Scrolls just enough to bring the tab fully into view (leaving the +
@@ -956,10 +1072,23 @@ partial class MainForm : Form
         }
         tab.Browser.BringToFront();
 
+        try { _pageMenu?.Close(); } catch { /* menu belongs to the old tab */ }
         SetAddressBarText(IsNewTabUrl(tab.Url) ? string.Empty : tab.Url); // Chrome-like empty omnibox on new tabs
         UpdateNavButtons();
         UpdateLoadingIndicator();
+        if (IsNewTabUrl(tab.Url))
+        {
+            // A new tab always shows the default mark: pin the source key to
+            // what its own load will compute (dedupes the fetch) so no late
+            // arrival from anywhere else can paint a foreign icon on it.
+            tab.FaviconSource = "origin:" + tab.Url;
+            SetTabFavicon(tab, DefaultFavicon, disposeOld: true);
+        }
         RefreshActiveTitleFavicon();
+        if (_findVisible)
+        {
+            HideFindBar(); // find runs against one tab; switching tabs closes it
+        }
         EnsureTabVisible(tab); // scrolled-out tabs come back into view on selection
         WriteDiagSnapshot("activate");
     }
@@ -973,6 +1102,14 @@ partial class MainForm : Form
         }
         bool wasActive = ReferenceEquals(tab, _activeTab);
         _tabs.RemoveAt(index);
+        if (!string.IsNullOrEmpty(tab.Url))
+        {
+            _closedTabs.Add(tab.Url); // Ctrl+Shift+T reopens newest-first
+            if (_closedTabs.Count > MaxClosedTabs)
+            {
+                _closedTabs.RemoveAt(0);
+            }
+        }
         tabsHost.Controls.Remove(tab.StripItem);
         contentPanel.Controls.Remove(tab.Browser);
         tab.StripItem.Dispose();
@@ -1196,7 +1333,10 @@ partial class MainForm : Form
         {
             return;
         }
-        if (!e.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        // e.Url can be null on aborted loads (proven by crash.log NRE) — treat
+        // like any other non-http navigation: nothing to learn, icon refresh.
+        string url = e.Url ?? string.Empty;
+        if (!url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
@@ -1206,7 +1346,7 @@ partial class MainForm : Form
         {
             try
             {
-                string host = new Uri(e.Url).Host;
+                string host = new Uri(url).Host;
                 if (!string.IsNullOrEmpty(host))
                 {
                     AddToHistory(host);
@@ -1233,7 +1373,7 @@ partial class MainForm : Form
         {
             return; // explicit product call, no network needed
         }
-        _ = FetchFaviconAsync(tab, urls);
+        _ = FetchFaviconAsync(tab, urls, key);
     }
 
     // Explicit brand overrides: pages whose <head> branding differs from the
@@ -1290,11 +1430,11 @@ partial class MainForm : Form
             return false;
         }
         Debug.WriteLine($"[Krypton] favicon brand-override: page={tab.Url} art={art}");
-        ApplyFavicon(tab, clone, "brand-override " + art);
+        ApplyFavicon(tab, clone, "brand-override " + art, tab.FaviconSource);
         return true;
     }
 
-    private async Task FetchFaviconAsync(BrowserTab tab, List<string> urls)
+    private async Task FetchFaviconAsync(BrowserTab tab, List<string> urls, string expectedKey)
     {
         var candidates = new List<string>(urls);
         try // Fallback derived from navigation state when the page supplies none.
@@ -1348,7 +1488,7 @@ partial class MainForm : Form
         string note = best == null
             ? $"default ({distinct.Count} failed)"
             : $"{best.Width}x{best.Height} {winner} ({distinct.Count} candidates)";
-        ApplyFavicon(tab, best, note); // null -> generic default icon, never blank
+        ApplyFavicon(tab, best, note, expectedKey); // null -> generic default icon, never blank
     }
 
     private static Image? DecodeImage(byte[] bytes)
@@ -1441,11 +1581,23 @@ partial class MainForm : Form
         }
     }
 
-    private void ApplyFavicon(BrowserTab tab, Image? img, string note)
+    private void ApplyFavicon(BrowserTab tab, Image? img, string note, string expectedKey)
     {
         Ui(() =>
         {
             tab.FaviconNote = note; // diag trace: what won and where from
+            // Stale-fetch guard: rapid Alt+Left/Right stacks overlapping
+            // fetches per tab — a slow earlier one completing after a newer
+            // one must not paint (the persisted wrong-favicon class of bug).
+            // The key is pinned at issue time and threaded through the fetch.
+            if (tab.FaviconSource != expectedKey)
+            {
+                if (img != null)
+                {
+                    img.Dispose();
+                }
+                return;
+            }
             if (tab.Browser.IsDisposed || tab.StripItem.IsDisposed || tab.StripIcon.IsDisposed)
             {
                 if (img != null)
@@ -1604,6 +1756,7 @@ partial class MainForm : Form
         {
             return;
         }
+        addressBar.BackColor = OmniboxFocusBack; // focus ring on (Chrome-like)
         if (Control.MouseButtons == MouseButtons.None)
         {
             // Keyboard/programmatic focus: no click in flight, so select
@@ -1629,6 +1782,7 @@ partial class MainForm : Form
     {
         _selectAllArmed = true;
         _pendingClickSelect = false;
+        addressBar.BackColor = OmniboxBack; // focus ring off
     }
 
     private void AddressBar_MouseDown(object? sender, MouseEventArgs e)
@@ -1895,21 +2049,12 @@ partial class MainForm : Form
         }
     }
 
-    // F11 toggles fullscreen from anywhere the FORM sees keys (omnibox,
-    // toolbar buttons). Page focus belongs to CEF's separate HWND, so the
-    // browser gets its own handler (BrowserKeyHandler) for the same keys.
+    // Form-level keys (KeyPreview covers toolbar + omnibox; focused pages go
+    // through BrowserKeyHandler instead — the form never sees those keys).
     private void MainForm_KeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.KeyCode == Keys.F11)
+        if (IsShortcutKey(e.KeyData) && TryRunShortcut(e.KeyData))
         {
-            ToggleFullScreen();
-            e.Handled = true;
-            e.SuppressKeyPress = true;
-            return;
-        }
-        if (e.KeyCode == Keys.Escape && _fullScreen && !addressBar.Focused)
-        {
-            SetFullScreen(false); // omnibox Esc stays with completion revert
             e.Handled = true;
             e.SuppressKeyPress = true;
         }
@@ -1932,7 +2077,11 @@ partial class MainForm : Form
         _activeTab?.Browser.Reload();
         FocusPage();
     }
-    private void BtnStop_Click(object? sender, EventArgs e)
+    private void BtnStop_Click(object? sender, EventArgs e) => StopActiveTab();
+
+    // Shared by the Stop button and Esc: abort the load, then never strand a
+    // blank canvas (history -> Back, first page -> new-tab dashboard).
+    private void StopActiveTab()
     {
         var tab = _activeTab;
         if (tab == null)
@@ -1995,6 +2144,623 @@ partial class MainForm : Form
         FocusPage();
     }
     private void BtnNewTab_Click(object? sender, EventArgs e) => CreateTab(NewTabUrl, activate: true);
+
+    // ---------- v1.1.0: keyboard shortcuts (single dispatcher) ----------
+    // One classifier + one UI-thread runner for every focus owner. The form
+    // (KeyPreview) sees toolbar + omnibox keys; focused pages own a separate
+    // CEF HWND the form never hears, so BrowserKeyHandler classifies there
+    // and posts here via Ui. Split in two because OnPreKeyEvent must answer
+    // synchronously on the CEF thread while the action must run on the UI
+    // thread: classify now (pure), run later (marshalled).
+    internal static bool IsShortcutKey(Keys keyData)
+    {
+        bool ctrl = (keyData & Keys.Control) == Keys.Control;
+        bool shift = (keyData & Keys.Shift) == Keys.Shift;
+        bool alt = (keyData & Keys.Alt) == Keys.Alt;
+        Keys key = keyData & Keys.KeyCode;
+        if (ctrl && !alt && (key == Keys.Oemplus || key == Keys.Add
+            || key == Keys.OemMinus || key == Keys.Subtract))
+        {
+            return true; // zoom ignores Shift ('+' needs it on most layouts)
+        }
+        if (ctrl && !alt && (key == Keys.D0 || key == Keys.NumPad0) && !shift)
+        {
+            return true;
+        }
+        if (ctrl && !alt && (key is Keys.T or Keys.R))
+        {
+            return true; // plain and Shift variants both handled
+        }
+        if (ctrl && !alt && !shift && (key is Keys.W or Keys.F or Keys.L or Keys.P))
+        {
+            return true;
+        }
+        if (ctrl && !alt && shift && key == Keys.I)
+        {
+            return true;
+        }
+        if (!ctrl && !shift && key == Keys.F11)
+        {
+            return true;
+        }
+        if (!ctrl && !shift && alt && (key == Keys.Left || key == Keys.Right))
+        {
+            return true;
+        }
+        return !ctrl && !shift && !alt && key == Keys.Escape;
+    }
+
+    // Already on the UI thread (form calls directly, pages go through
+    // PostShortcut). Returns true when the combo was consumed.
+    internal bool TryRunShortcut(Keys keyData)
+    {
+        var tab = _activeTab;
+        bool ctrl = (keyData & Keys.Control) == Keys.Control;
+        bool shift = (keyData & Keys.Shift) == Keys.Shift;
+        bool alt = (keyData & Keys.Alt) == Keys.Alt;
+        Keys key = keyData & Keys.KeyCode;
+        if (ctrl && !alt && (key == Keys.Oemplus || key == Keys.Add))
+        {
+            ZoomStep(+1); return true;
+        }
+        if (ctrl && !alt && (key == Keys.OemMinus || key == Keys.Subtract))
+        {
+            ZoomStep(-1); return true;
+        }
+        if (ctrl && !alt && !shift && (key == Keys.D0 || key == Keys.NumPad0))
+        {
+            ZoomReset(); return true;
+        }
+        if (ctrl && !alt && !shift && key == Keys.T)
+        {
+            CreateTab(NewTabUrl, activate: true); return true;
+        }
+        if (ctrl && !alt && shift && key == Keys.T)
+        {
+            ReopenClosedTab(); return true;
+        }
+        if (ctrl && !alt && !shift && key == Keys.W)
+        {
+            if (tab != null)
+            {
+                CloseTab(tab);
+            }
+            return true;
+        }
+        if (ctrl && !alt && !shift && key == Keys.R)
+        {
+            tab?.Browser.Reload(); FocusPage(); return true;
+        }
+        if (ctrl && !alt && shift && key == Keys.R)
+        {
+            tab?.Browser.Reload(ignoreCache: true); FocusPage(); return true;
+        }
+        if (ctrl && !alt && !shift && key == Keys.L)
+        {
+            FocusAddressBar(); return true;
+        }
+        if (ctrl && !alt && !shift && key == Keys.F)
+        {
+            ShowFindBar(); return true;
+        }
+        if (ctrl && !alt && !shift && key == Keys.P)
+        {
+            tab?.Browser.Print(); return true;
+        }
+        if (ctrl && !alt && shift && key == Keys.I)
+        {
+            tab?.Browser.ShowDevTools(); return true;
+        }
+        if (!ctrl && !shift && !alt && key == Keys.F11)
+        {
+            ToggleFullScreen(); return true;
+        }
+        if (!ctrl && !shift && alt && key == Keys.Left)
+        {
+            tab?.Browser.Back(); FocusPage(); return true;
+        }
+        if (!ctrl && !shift && alt && key == Keys.Right)
+        {
+            tab?.Browser.Forward(); FocusPage(); return true;
+        }
+        if (!ctrl && !shift && !alt && key == Keys.Escape)
+        {
+            if (addressBar.Focused)
+            {
+                return false; // omnibox owns Esc (completion revert)
+            }
+            if (_menuVisible && _pageMenu != null && !_pageMenu.IsDisposed)
+            {
+                _pageMenu.Close(); return true; // least destructive first
+            }
+            if (_fullScreen)
+            {
+                SetFullScreen(false); return true;
+            }
+            if (_findPanel != null && !_findPanel.IsDisposed && _findPanel.Visible)
+            {
+                HideFindBar(); return true;
+            }
+            if (tab != null && tab.IsLoading)
+            {
+                StopActiveTab(); return true;
+            }
+        }
+        return false;
+    }
+
+    // CEF-thread entry: classify synchronously, run marshalled.
+    internal void PostShortcut(Keys keyData) => Ui(() => TryRunShortcut(keyData));
+
+    private void ReopenClosedTab()
+    {
+        if (_closedTabs.Count == 0)
+        {
+            return;
+        }
+        string url = _closedTabs[^1];
+        _closedTabs.RemoveAt(_closedTabs.Count - 1);
+        if (!string.IsNullOrEmpty(url))
+        {
+            CreateTab(url, activate: true);
+        }
+    }
+
+    private void FocusAddressBar()
+    {
+        if (addressBar.IsDisposed)
+        {
+            return;
+        }
+        addressBar.Focus(); // keyboard path selects all via Enter/arming
+        addressBar.SelectAll();
+    }
+
+    private void ZoomStep(int direction)
+    {
+        var tab = _activeTab;
+        if (tab == null || tab.Browser.IsDisposed)
+        {
+            return;
+        }
+        tab.ZoomLevel = Math.Clamp(tab.ZoomLevel + direction, -4, 4);
+        tab.Browser.SetZoomLevel(tab.ZoomLevel);
+    }
+
+    private void ZoomReset()
+    {
+        var tab = _activeTab;
+        if (tab == null || tab.Browser.IsDisposed)
+        {
+            return;
+        }
+        tab.ZoomLevel = 0;
+        tab.Browser.SetZoomLevel(0);
+    }
+
+    // ---------- v1.1.0: find in page (floating bar, per active tab) ----------
+    private Panel? _findPanel;
+    private TextBox? _findBox;
+    private Label? _findCount;
+    // Plain-field mirror of panel visibility for WantsPageEscape (CEF thread
+    // must never read Control.Visible off-thread).
+    private bool _findVisible;
+
+    internal bool WantsPageEscape()
+    {
+        if (_fullScreen || _findVisible || _menuVisible)
+        {
+            return true;
+        }
+        var tab = _activeTab;
+        return tab != null && tab.IsLoading;
+    }
+
+    internal void ReportFindResult(BrowserTab tab, int activeMatch, int totalMatches) => Ui(() =>
+    {
+        if (!ReferenceEquals(tab, _activeTab) || _findCount == null || _findCount.IsDisposed)
+        {
+            return;
+        }
+        _findCount.Text = totalMatches <= 0 ? "No matches" : $"{activeMatch + 1} of {totalMatches}";
+    });
+
+    private void EnsureFindBar()
+    {
+        if (_findPanel != null && !_findPanel.IsDisposed)
+        {
+            return;
+        }
+        var panel = new Panel
+        {
+            Size = new Size(384, 40),
+            BackColor = ToolbarBack,
+            BorderStyle = BorderStyle.FixedSingle,
+            Visible = false,
+        };
+        var box = new TextBox
+        {
+            Location = new Point(10, 8),
+            Size = new Size(190, 24),
+            BackColor = OmniboxBack,
+            ForeColor = OmniboxFore,
+            BorderStyle = BorderStyle.FixedSingle,
+            PlaceholderText = "Find in page",
+        };
+        var count = new Label
+        {
+            Location = new Point(204, 8),
+            Size = new Size(80, 24),
+            BackColor = ToolbarBack,
+            ForeColor = InactiveTitleFore,
+            TextAlign = ContentAlignment.MiddleLeft,
+            AutoEllipsis = true,
+        };
+        // Explicit small font: default-size glyphs (▲▼×) clipped at some DPIs.
+        var glyphFont = new Font("Segoe UI", 8f, FontStyle.Regular);
+        var prev = new Button
+        {
+            Location = new Point(288, 6),
+            Size = new Size(28, 28),
+            Text = "▲",
+            Font = glyphFont,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = ToolbarBack,
+            ForeColor = ActiveTitleFore,
+        };
+        var next = new Button
+        {
+            Location = new Point(318, 6),
+            Size = new Size(28, 28),
+            Text = "▼",
+            Font = glyphFont,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = ToolbarBack,
+            ForeColor = ActiveTitleFore,
+        };
+        var close = new Button
+        {
+            Location = new Point(348, 6),
+            Size = new Size(28, 28),
+            Text = "×",
+            Font = glyphFont,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = ToolbarBack,
+            ForeColor = ActiveTitleFore,
+        };
+        prev.FlatAppearance.BorderSize = 0;
+        next.FlatAppearance.BorderSize = 0;
+        close.FlatAppearance.BorderSize = 0;
+        box.TextChanged += (_, _) => DoFind(findNext: false, forward: true);
+        box.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                DoFind(findNext: true, forward: !e.Shift);
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+            else if (e.KeyCode == Keys.Escape)
+            {
+                HideFindBar();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+        };
+        prev.Click += (_, _) => DoFind(findNext: true, forward: false);
+        next.Click += (_, _) => DoFind(findNext: true, forward: true);
+        close.Click += (_, _) => HideFindBar();
+        panel.Controls.Add(box);
+        panel.Controls.Add(count);
+        panel.Controls.Add(prev);
+        panel.Controls.Add(next);
+        panel.Controls.Add(close);
+        contentPanel.Controls.Add(panel);
+        _findPanel = panel;
+        _findBox = box;
+        _findCount = count;
+    }
+
+    private void ShowFindBar()
+    {
+        if (_activeTab == null)
+        {
+            return;
+        }
+        EnsureFindBar();
+        if (_findPanel == null || _findBox == null
+            || _findPanel.IsDisposed || _findBox.IsDisposed)
+        {
+            return;
+        }
+        _findPanel.Location = new Point(
+            Math.Max(0, contentPanel.ClientSize.Width - _findPanel.Width - 12), 12);
+        _findPanel.BringToFront();
+        _findPanel.Show();
+        _findVisible = true;
+        _findBox.Focus();
+        _findBox.SelectAll();
+        if (_findBox.TextLength > 0)
+        {
+            DoFind(findNext: false, forward: true);
+        }
+    }
+
+    private void HideFindBar()
+    {
+        _findVisible = false;
+        try { _activeTab?.Browser.StopFinding(true); } catch { /* teardown */ }
+        if (_findPanel != null && !_findPanel.IsDisposed)
+        {
+            _findPanel.Hide();
+        }
+        FocusPage();
+    }
+
+    private void DoFind(bool findNext, bool forward)
+    {
+        var tab = _activeTab;
+        if (tab == null || tab.Browser.IsDisposed
+            || _findBox == null || _findBox.IsDisposed)
+        {
+            return;
+        }
+        string text = _findBox.Text;
+        if (text.Length == 0)
+        {
+            try { tab.Browser.StopFinding(true); } catch { /* teardown */ }
+            if (_findCount != null && !_findCount.IsDisposed)
+            {
+                _findCount.Text = string.Empty;
+            }
+            return;
+        }
+        try { tab.Browser.Find(text, forward, matchCase: false, findNext); }
+        catch { /* teardown */ }
+    }
+
+    // ---------- v1.1.0: page context menu (WinForms, dark) ----------
+    // CEF-thread entry from TabContextMenuHandler: marshal, then build fresh
+    // (enabled states come from the snapshot, never live controls).
+    internal void PostPageMenu(BrowserTab tab, PageMenuState state) =>
+        Ui(() => ShowPageMenu(tab, state));
+
+    // Single reused menu, rebuilt on every open. Never disposed mid-flight:
+    // disposing on Closed raced the click-dismiss path (Closed fires while
+    // the click is still dispatching -> ObjectDisposedException on every
+    // item, proven by crash.log). Disposed once with the form.
+    private ContextMenuStrip? _pageMenu;
+    // Plain-field mirror of menu visibility for WantsPageEscape (CEF thread
+    // must never read Control.Visible off-thread).
+    private bool _menuVisible;
+    // Our own outside-click dismiss, WinForms-surface half: the framework's
+    // activation tracking misses clicks landing on the native CEF child (the
+    // stuck-open menu) because CEF pumps input on its own thread — those are
+    // caught by the low-level hook instead (InstallMenuHook). This filter
+    // covers toolbar/strip clicks. Never swallows — clicks pass through.
+    private readonly MenuDismissFilter _menuDismissFilter;
+    private sealed class MenuDismissFilter(MainForm form) : IMessageFilter
+    {
+        private const int WM_LBUTTONDOWN = 0x201;
+        private const int WM_RBUTTONDOWN = 0x204;
+        private const int WM_MBUTTONDOWN = 0x207;
+
+        public bool PreFilterMessage(ref Message m)
+        {
+            if (m.Msg != WM_LBUTTONDOWN && m.Msg != WM_RBUTTONDOWN && m.Msg != WM_MBUTTONDOWN)
+            {
+                return false;
+            }
+            try
+            {
+                form.NoteOutsideMouseDown();
+            }
+            catch { /* a dismiss must never break input */ }
+            return false;
+        }
+    }
+
+    internal void NoteOutsideMouseDown()
+    {
+        var menu = _pageMenu;
+        if (menu == null || menu.IsDisposed || !menu.Visible)
+        {
+            return;
+        }
+        try
+        {
+            if (!menu.Bounds.Contains(Cursor.Position))
+            {
+                menu.Close();
+            }
+        }
+        catch { /* teardown */ }
+    }
+
+    private void ShowPageMenu(BrowserTab tab, PageMenuState state)
+    {
+        if (tab.Browser.IsDisposed || !_tabs.Contains(tab))
+        {
+            return;
+        }
+        if (_pageMenu == null || _pageMenu.IsDisposed)
+        {
+            _pageMenu = new ContextMenuStrip
+            {
+                BackColor = ToolbarBack,
+                ForeColor = ActiveTitleFore,
+                ShowImageMargin = false,
+                AutoClose = true,
+            };
+            _pageMenu.VisibleChanged += (_, _) =>
+            {
+                _menuVisible = _pageMenu.Visible;
+                // Both nets live exactly while the menu is up.
+                if (_pageMenu.Visible)
+                {
+                    Application.AddMessageFilter(_menuDismissFilter);
+                    InstallMenuHook();
+                }
+                else
+                {
+                    Application.RemoveMessageFilter(_menuDismissFilter);
+                    UninstallMenuHook();
+                }
+            };
+        }
+        var menu = _pageMenu;
+        if (menu.Visible)
+        {
+            menu.Close(); // re-right-click starts fresh, never stacks
+        }
+        menu.Items.Clear();
+        // Click-time guard: the tab can close while the menu is open (× key).
+        // A throwing item must never reach the message loop.
+        ToolStripMenuItem Item(string text, EventHandler onClick, bool enabled = true)
+        {
+            void SafeClick(object? s, EventArgs e)
+            {
+                try { onClick(s, e); } catch { /* tab tore down mid-menu */ }
+            }
+            return new ToolStripMenuItem(text, null, SafeClick) { Enabled = enabled };
+        }
+        // Chrome parity: a linked image (YouTube thumbnails, etc.) shows BOTH
+        // sections. The old either/or meant image items never appeared on
+        // linked images no matter how precisely the click landed.
+        if (state.LinkUrl.Length > 0)
+        {
+            string link = state.LinkUrl;
+            menu.Items.Add(Item("Open link in new tab", (_, _) => CreateTab(link, true)));
+            menu.Items.Add(Item("Save link as...", (_, _) => SaveUrlBytes(link)));
+            menu.Items.Add(Item("Copy link address", (_, _) =>
+            {
+                try { Clipboard.SetText(link); } catch { /* clipboard busy */ }
+            }));
+            menu.Items.Add(new ToolStripSeparator());
+        }
+        if (state.HasImage && state.ImageUrl.Length > 0)
+        {
+            string img = state.ImageUrl;
+            menu.Items.Add(Item("Open image in new tab", (_, _) => CreateTab(img, true)));
+            menu.Items.Add(Item("Save image as...", (_, _) => SaveUrlBytes(img)));
+            menu.Items.Add(Item("Copy image", (_, _) => CopyImageToClipboard(img)));
+            menu.Items.Add(Item("Copy image address", (_, _) =>
+            {
+                try { Clipboard.SetText(img); } catch { /* clipboard busy */ }
+            }));
+            menu.Items.Add(new ToolStripSeparator());
+        }
+        menu.Items.Add(Item("Back", (_, _) => tab.Browser.Back(), state.CanGoBack));
+        menu.Items.Add(Item("Forward", (_, _) => tab.Browser.Forward(), state.CanGoForward));
+        menu.Items.Add(Item("Reload", (_, _) => tab.Browser.Reload()));
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(Item("Print...", (_, _) => tab.Browser.Print()));
+        menu.Items.Add(Item("Save as...", (_, _) => SavePageAs(tab)));
+        menu.Items.Add(new ToolStripSeparator());
+        bool viewable = state.PageUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase);
+        menu.Items.Add(Item("View page source", (_, _) =>
+            CreateTab("view-source:" + state.PageUrl, true), viewable));
+        menu.Items.Add(Item("Inspect", (_, _) => tab.Browser.ShowDevTools()));
+        // Owner-based show: an ownerless popup misses outside clicks that
+        // land on the native CEF child (the stuck-open menu) — with an owner,
+        // activation tracking dismisses it.
+        menu.Show(this, PointToClient(Cursor.Position));
+        _menuVisible = true;
+    }
+
+    // Fetched-file actions (menu "Save image/link as", "Copy image"): plain
+    // downloads through the favicon HttpClient (UA set, 10s timeout). Whole
+    // bodies are guarded — async continuations must never reach the loop.
+    private async void SaveUrlBytes(string url)
+    {
+        byte[]? bytes = null;
+        try
+        {
+            bytes = await FaviconHttp.GetByteArrayAsync(url);
+        }
+        catch { /* unreachable/oversize -> silent */ }
+        if (bytes == null || IsDisposed || Disposing)
+        {
+            return;
+        }
+        string name = "download";
+        try
+        {
+            string last = new Uri(url).Segments.LastOrDefault()?.Trim('/') ?? string.Empty;
+            if (last.Length > 0)
+            {
+                foreach (char c in Path.GetInvalidFileNameChars())
+                {
+                    last = last.Replace(c, '_');
+                }
+                name = last;
+            }
+        }
+        catch { /* keep default name */ }
+        using var dlg = new SaveFileDialog
+        {
+            FileName = name,
+            Filter = "All files (*.*)|*.*",
+        };
+        if (dlg.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+        try
+        {
+            File.WriteAllBytes(dlg.FileName, bytes);
+        }
+        catch { /* unwritable location -> silent */ }
+    }
+
+    private async void CopyImageToClipboard(string url)
+    {
+        try
+        {
+            byte[] bytes = await FaviconHttp.GetByteArrayAsync(url);
+            using var ms = new MemoryStream(bytes);
+            using var tmp = Image.FromStream(ms);
+            Clipboard.SetImage(new Bitmap(tmp)); // detached copy, stream dies
+        }
+        catch { /* bad format, clipboard busy, teardown -> silent */ }
+    }
+
+    // "Save as" without a download pipeline: the rendered HTML source via
+    // GetSourceAsync, written wherever the user picks. Page resources (CSS,
+    // images) are not inlined — v1.1.0 saves markup, not a bundle.
+    private async void SavePageAs(BrowserTab tab)
+    {
+        string html;
+        try
+        {
+            html = await tab.Browser.GetSourceAsync();
+        }
+        catch
+        {
+            return; // teardown mid-fetch
+        }
+        if (tab.Browser.IsDisposed)
+        {
+            return;
+        }
+        using var dlg = new SaveFileDialog
+        {
+            Filter = "Web page (*.html)|*.html|All files (*.*)|*.*",
+            FileName = "page.html",
+        };
+        if (dlg.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+        try
+        {
+            File.WriteAllText(dlg.FileName, html);
+        }
+        catch
+        {
+            // Unwritable location: stay silent like a cancelled save.
+        }
+    }
     private void TabsHost_SizeChanged(object? sender, EventArgs e)
     {
         // Fires during InitializeComponent (tabsHost layout) before the ctor
