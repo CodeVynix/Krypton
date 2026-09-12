@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="Krypton — a minimal, native Windows web browser. Chrome's feel without the weight.">
+<title>Krypton — a minimal Windows browser</title>
+<link rel="icon" href="favicon.ico">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, Arial, sans-serif;
+    background: #202124;
+    color: #e8eaed;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 800px; margin: 0 auto; padding: 0 22px; }
+  nav.top {
+    background: #2b3038;
+    border-bottom: 1px solid #3c424d;
+    padding: 12px 22px;
+  }
+  nav.top .wrap { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  nav.top img { width: 28px; height: 28px; }
+  nav.top b { font-size: 17px; }
+  nav.top .links { margin-left: auto; display: flex; gap: 16px; flex-wrap: wrap; }
+  nav.top a { color: #a8c7fa; text-decoration: none; font-size: 14px; }
+  header.hero {
+    text-align: center;
+    padding: 64px 22px 56px;
+    background: #2b3038;
+    border-bottom: 1px solid #3c424d;
+  }
+  header.hero img { width: 112px; height: 112px; }
+  header.hero h1 { font-size: 52px; font-weight: 400; color: #fff; margin: 10px 0 6px; }
+  header.hero p.tag { font-size: 18px; color: #b2b8c1; margin-bottom: 26px; }
+  .btn {
+    display: inline-block;
+    background: #8ab4f8;
+    color: #202124;
+    font-size: 17px;
+    font-weight: 600;
+    padding: 13px 38px;
+    border-radius: 999px;
+    text-decoration: none;
+  }
+  .btn:hover { background: #a8c7fa; }
+  .btn.ghost {
+    background: transparent;
+    color: #a8c7fa;
+    border: 1px solid #5f6368;
+    font-size: 15px;
+    padding: 10px 28px;
+    margin-left: 10px;
+  }
+  .shot {
+    margin: 34px auto 0;
+    max-width: 720px;
+    border: 2px dashed #5f6368;
+    border-radius: 12px;
+    padding: 46px 20px;
+    color: #9aa0a6;
+    font-size: 14px;
+  }
+  section { padding: 44px 0 8px; }
+  section h2 { font-size: 26px; font-weight: 600; color: #fff; margin-bottom: 12px; }
+  section p, section li { font-size: 15px; color: #d7dbe0; }
+  section p { margin: 10px 0; }
+  section ul, section ol { padding-left: 24px; }
+  section li { margin: 4px 0; }
+  a { color: #a8c7fa; }
+  code {
+    font-family: Consolas, monospace;
+    font-size: 13px;
+    background: #303136;
+    border-radius: 4px;
+    padding: 1px 6px;
+  }
+  pre {
+    font-family: Consolas, monospace;
+    font-size: 13px;
+    background: #17181c;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 12px 0;
+    overflow-x: auto;
+    color: #d7dbe0;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #3c424d; vertical-align: top; }
+  th { color: #fff; }
+  td { color: #d7dbe0; }
+  .badge {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: 2px 12px;
+    vertical-align: middle;
+  }
+  .badge.latest { background: #8ab4f8; color: #202124; }
+  .badge.wip { background: transparent; color: #fdd663; border: 1px solid #fdd663; }
+  .badge.old { background: transparent; color: #9aa0a6; border: 1px solid #5f6368; }
+  .ver { background: #2b3038; border: 1px solid #3c424d; border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+  .ver h3 { font-size: 18px; margin-bottom: 4px; }
+  .ver p { font-size: 14px; margin: 4px 0; }
+  .warn {
+    background: #2b3038;
+    border: 1px solid #5f6368;
+    border-left: 4px solid #fdd663;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    font-size: 14px;
+  }
+  .crypto {
+    word-break: break-all;
+    display: block;
+    user-select: all;
+  }
+  footer {
+    margin-top: 56px;
+    padding: 26px 22px 40px;
+    background: #2b3038;
+    border-top: 1px solid #3c424d;
+    text-align: center;
+    font-size: 14px;
+    color: #9aa0a6;
+  }
+  footer .in { color: #e8eaed; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<nav class="top">
+  <div class="wrap">
+    <img src="logo.png" alt="Krypton logo">
+    <b>Krypton</b>
+    <span class="links">
+      <a href="#why">Why</a>
+      <a href="#specs">Specs</a>
+      <a href="#versions">Versions</a>
+      <a href="#download">Download</a>
+      <a href="https://github.com/CodeVynix/Krypton">GitHub</a>
+    </span>
+  </div>
+</nav>
+
+<header class="hero">
+  <img src="logo.png" alt="Krypton logo">
+  <h1>Krypton</h1>
+  <p class="tag">The browser I always wanted: Chrome's feel without the weight.</p>
+  <p>
+    <a class="btn" href="https://github.com/CodeVynix/Krypton/releases/latest">Download for Windows</a>
+    <a class="btn ghost" href="https://github.com/CodeVynix/Krypton">Source code</a>
+  </p>
+  <div class="shot">App screenshot — coming soon. (For now, see it in action in the README on GitHub.)</div>
+</header>
+
+<div class="wrap">
+
+<section id="who">
+  <h2>Who's behind it</h2>
+  <p>Hi — I'm <a href="https://github.com/CodeVynix">CodeVynix</a>, one developer in India with an unreasonable goal: to build a real browser, from scratch, that one day stands next to Chrome instead of Firefox. No company, no team, no funding — just evenings, curiosity, and a stubborn belief that software should stay lean. Made in India. 🇮🇳</p>
+</section>
+
+<section id="why">
+  <h2>What is it, and why does it exist?</h2>
+  <p>Krypton is a minimal web browser for Windows. It opens tabs, has an address bar that completes what you type, a right-click menu, keyboard shortcuts, and a docs page — and deliberately almost nothing else. No accounts, no sync, no extensions store, no telemetry calling home, no 400&nbsp;MB of JavaScript pretending to be a desktop app.</p>
+  <p>Why? Because every mainstream browser got heavy. I wanted something that starts fast, stays out of the way, and that I fully understand — every line of the window around the page is mine. If you've ever wished Chrome had a diet version, that's Krypton.</p>
+  <p><b>A real-life scenario:</b> you're researching on a dozen tabs. <code>Ctrl+T</code> opens one, you type two letters and hit <code>Tab</code> to complete the site, <code>Ctrl+W</code> kills finished tabs, and when you inevitably close the wrong one, <code>Ctrl+Shift+T</code> brings it straight back. All keyboard, no mouse, no waiting.</p>
+</section>
+
+<section id="compare">
+  <h2>Krypton vs the big browsers</h2>
+  <table>
+    <tr><th></th><th>Krypton</th><th>Chrome / Edge</th><th>Firefox</th></tr>
+    <tr><td><b>Footprint</b></td><td>Small native shell, one job</td><td>Full platforms with background services</td><td>Full platform, own engine to maintain</td></tr>
+    <tr><td><b>Accounts &amp; sync</b></td><td>None — nothing leaves your PC</td><td>Account-centric, sync by default</td><td>Account + sync available</td></tr>
+    <tr><td><b>Extensions</b></td><td>Not yet (experimental, v1.2.0)</td><td>Huge stores</td><td>Huge store</td></tr>
+    <tr><td><b>Platforms</b></td><td>Windows x64 only</td><td>Everything</td><td>Everything</td></tr>
+    <tr><td><b>Trust model</b></td><td>Open source, but currently unsigned builds</td><td>Signed, corporate-backed</td><td>Signed, nonprofit-backed</td></tr>
+  </table>
+  <p>Honest version: if you need extensions, sync across devices, or a Mac/Linux build today, keep your main browser — Krypton isn't there yet. If you want a fast, quiet second browser on Windows, give it a spin.</p>
+</section>
+
+<section id="built">
+  <h2>How it's built</h2>
+  <p>Three pieces, all plain and boring on purpose. The app is written in <b>C# (.NET 8)</b>. The entire window you see — tab strip, toolbar, menus — is <b>WinForms</b>, real native Windows controls, which is why it starts fast and sips memory. The web pages themselves are rendered by <b>Chromium</b>, the same engine inside Chrome, embedded through a library called <b>CefSharp</b>.</p>
+</section>
+
+<section id="cef">
+  <h2>What is CEF, exactly?</h2>
+  <p>CEF stands for Chromium Embedded Framework. Think of it this way: Google's Chrome is two things glued together — the Chromium engine that renders pages, and Google's own window around it. CEF is just the engine part, packaged so other programs can borrow it. Krypton borrows the engine and builds its own window around it. You get Chrome-grade rendering and compatibility, while everything you click outside the page is 100% Krypton's own code.</p>
+</section>
+
+<section id="code">
+  <h2>A peek at the code</h2>
+  <p>One rule runs the whole codebase: the web engine talks on background threads, Windows controls only tolerate the UI thread — so every event is marshalled across. It looks like this:</p>
+<pre>private void Browser_AddressChanged(object? sender, AddressChangedEventArgs e)
+{
+    // CEF thread: never touch controls here.
+    Ui(() =&gt; addressBar.Text = e.Address); // marshalled to the UI thread
+}</pre>
+  <p>That's the pattern behind tabs, titles, favicons, loading bars, and every shortcut — small, explicit, no magic. The full source is on <a href="https://github.com/CodeVynix/Krypton">GitHub</a> under MIT.</p>
+</section>
+
+<section id="specs">
+  <h2>System requirements</h2>
+  <p><b>Minimum</b> — Windows 10 (1809+, 64-bit), dual-core x64 processor, 4&nbsp;GB RAM, ~800&nbsp;MB free disk, and the <a href="https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist">VC++ 2022 x64 runtime</a>.</p>
+  <p><b>Recommended</b> — Windows 11 (64-bit), quad-core or better, 8&nbsp;GB RAM, an SSD, and a 1080p+ display. Extra RAM mostly matters when lots of heavy tabs (video, maps, docs) stay open.</p>
+</section>
+
+<section id="versions">
+  <h2>Versions</h2>
+  <div class="ver">
+    <h3>v1.2.0 <span class="badge wip">work in progress</span></h3>
+    <p>The big one: settings page, history, downloads, bookmarks that grow as you browse, Incognito mode, address-bar suggestions, experimental extensions.</p>
+  </div>
+  <div class="ver">
+    <h3>v1.1.0 <span class="badge latest">latest</span></h3>
+    <p>Shortcuts, right-click menu, find bar, UI polish, re-themed New Tab, built-in docs. <a href="https://github.com/CodeVynix/Krypton/releases#release-v1.1.0">Release notes</a></p>
+  </div>
+  <div class="ver">
+    <h3>v1.0.0 <span class="badge old">older</span></h3>
+    <p>The first release: tabs, address bar, and a dark native window. <a href="https://github.com/CodeVynix/Krypton/releases#release-v1.0.0">Release notes</a></p>
+  </div>
+</section>
+
+<section id="download">
+  <h2>Download</h2>
+  <p><a class="btn" href="https://github.com/CodeVynix/Krypton/releases/latest">Download for Windows</a></p>
+  <div class="warn"><b>Unsigned build, honest warning:</b> Windows may complain on first run — SmartScreen: click "More info" → "Run anyway". If Smart App Control is on, it can block the installer outright: Settings → Privacy &amp; security → Windows Security → App &amp; browser control → Smart App Control → Off (you can turn it back on afterward). I've applied for free signing through the <a href="https://signpath.org">SignPath Foundation</a>; once approved, signed releases make both warnings go away.</div>
+</section>
+
+<section id="build">
+  <h2>Build it yourself</h2>
+  <p>You need Windows 10/11 x64, <a href="https://git-scm.com/download/win">Git</a>, the <a href="https://dotnet.microsoft.com/download/dotnet/8.0">.NET 8 SDK</a>, and the <a href="https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist">VC++ 2022 x64 runtime</a>. Then:</p>
+<pre>git clone https://github.com/CodeVynix/Krypton.git
+cd Krypton
+dotnet build
+dotnet run --project Krypton\Krypton.csproj</pre>
+  <p>Keep the project on x64 (CefSharp supports nothing else — AnyCPU won't run), and close Krypton before rebuilding or the running exe locks its own files. For a release build:</p>
+<pre>dotnet publish Krypton\Krypton.csproj -c Release -r win-x64 --self-contained true -o publish</pre>
+  <p>Ship the whole <code>publish</code> folder; compile <code>Krypton.iss</code> with <a href="https://jrsoftware.org/isdl.php">Inno Setup</a> for the installer. Never single-file publish — CefSharp needs its native DLLs next to the exe.</p>
+</section>
+
+<section id="support">
+  <h2>Support the journey</h2>
+  <p>Krypton is free and open source (MIT). If you want it to keep going:</p>
+  <ul>
+    <li><b>Contribute</b> — code, bug reports with repro steps, even typo fixes. Start at the <a href="https://github.com/CodeVynix/Krypton">repo</a>.</li>
+    <li><b>File issues</b> — broken page? Weird glitch? <a href="https://github.com/CodeVynix/Krypton/issues">Tell me here</a>, with <code>%LocalAppData%\Krypton\crash.log</code> if it crashed.</li>
+    <li><b>Star it</b> — a star on <a href="https://github.com/CodeVynix/Krypton">GitHub</a> costs nothing and keeps me going.</li>
+    <li><b>Crypto</b> — USDT on SPL / Solana network:<br><code class="crypto">HMXQvN7BXeM5aUwXfFeR85jvCNijD9KSwUVQmPAf1UpB</code></li>
+  </ul>
+</section>
+
+</div>
+
+<footer>
+  <p>Made in India 🇮🇳 by <a href="https://github.com/CodeVynix">CodeVynix</a> · MIT licensed · <a href="https://github.com/CodeVynix/Krypton">GitHub</a></p>
+</footer>
+
+</body>
+</html>

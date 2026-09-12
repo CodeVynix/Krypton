@@ -6,11 +6,11 @@ No bookmarks bar managers, no extensions store, no accounts, no sync. Just fast 
 
 ## Where things stand
 
-**v1.0.0** is done. It ended up including a few fixes I couldn't leave alone: tab title spacing, an annoying CapsLock casing bug in autocomplete (`mM`), and some crash hardening with a `crash.log` so silent deaths leave evidence (`%LocalAppData%\Krypton\crash.log`).
+**v1.0.0** is done (shipped Sep 10, 2026). It ended up including a few fixes I couldn't leave alone: tab title spacing, an annoying CapsLock casing bug in autocomplete (`mM`), and some crash hardening with a `crash.log` so silent deaths leave evidence (`%LocalAppData%\Krypton\crash.log`).
 
 If you find anything broken in v1.0.0, [open an issue](https://github.com/CodeVynix/Krypton/issues) and it'll land in v1.1.0.
 
-**v1.1.0** is done too: a proper right-click menu (back/forward/reload, print, save as, view source, inspect, link and image actions), a bunch of UI polish, a re-themed new tab page, full keyboard shortcuts with a floating find bar, and a built-in docs page — hit the Docs link on the new tab page, it lives at `krypton://docs`.
+**v1.1.0** is done too (shipped Sep 12, 2026): a proper right-click menu (back/forward/reload, print, save as, view source, inspect, link and image actions), a bunch of UI polish, a re-themed new tab page, full keyboard shortcuts with a floating find bar, and a built-in docs page — hit the Docs link on the new tab page, it lives at `krypton://docs`.
 
 **v1.2.0** is the big one and it's still on the drawing board: settings page (`krypton://settings`, Alt+F then S), history (`krypton://history`, Ctrl+H), downloads (Ctrl+J), bookmarks that grow as you browse, Incognito mode (Ctrl+Shift+N — and yeah, it's called Incognito, full stop), address bar suggestions, and experimental extensions. (Docs already shipped in v1.1.0.)
 
